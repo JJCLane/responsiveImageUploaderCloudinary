@@ -14,11 +14,47 @@ cloudinary.config({
 // Parse the JSON file of images to upload
 const photosToUpload = JSON.parse(fs.readFileSync('./photosToUpload.json', 'utf8'));
 
+function renderImage(index, {
+  maxViewportWidth,
+  maxWidth,
+  viewportRatio,
+  screenMinWidth,
+  screenMaxWidth,
+  srcset,
+  src,
+  alt
+}) {
+  let tag = 'img';
+  let media = '';
+  if (index > 0) {
+    // This is one of the smaller images within a picture element
+    tag = 'source';
+    media = `media="${
+      screenMinWidth ? 
+        `(min-width: ${screenMinWidth}px)` : ``
+      }${screenMinWidth && screenMaxWidth ? ' and ' : ''}${
+        screenMaxWidth ? 
+          `(max-width: ${screenMaxWidth}px)` : ``
+      }"`;
+  }
+
+  return `
+  <${tag} ${media}
+    sizes="(max-width: ${maxViewportWidth}px) ${viewportRatio}vw, ${maxWidth}px"
+    srcset="${srcset}"
+    src="${src}"
+    alt="${alt}"
+  />`;
+}
+
 function handleUpload(original, settings, upload) {
   const derivatives = upload.responsive_breakpoints;
-  let imgTag = '';
+  const isPicture = (derivatives.length > 1);
+  let imgTag = isPicture ? '\n<picture>' : '';
+  let contentfulImgTag = isPicture ? '\n<picture>' : '';
 
-  derivatives.forEach(function(derivative, dIndex) {
+  derivatives.reverse().forEach(function(derivative, forwardIndex) {
+    const dIndex = (derivatives.length - 1) - forwardIndex;
     let srcSet = '';
     let contentfulSrcSet = '';
     const config = settings[dIndex];
@@ -38,27 +74,31 @@ function handleUpload(original, settings, upload) {
       }
     })
 
-    
-    // Template literals preserve leading whitespace
-    imgTag += `
-  <!-- Upload for PUBLIC_ID ${upload.public_id}  -->
-  <img sizes="(max-width: ${maxViewportWidth}px) ${config.view_port_ratio}vw, ${maxWidth}px"
-  srcset="${srcSet}"
-  src="${upload.secure_url}"
-  alt=""
-  />`;
-
-    imgTag += `
-  <img sizes="(max-width: ${maxViewportWidth}px) ${settings[dIndex].view_port_ratio}vw, ${maxWidth}px"
-    srcset="${contentfulSrcSet}"
-    src="${original.location}"
-    alt="${original.alt || ''}"
-  />
-    `;
+    imgTag += renderImage(dIndex, {
+      maxViewportWidth,
+      maxWidth,
+      viewportRatio: config.view_port_ratio,
+      screenMinWidth: config.screen_min_width,
+      screenMaxWidth: config.screen_max_width,
+      srcset: srcSet,
+      src: upload.secure_url,
+      alt: original.alt || ''
+    });
+    contentfulImgTag += renderImage(dIndex, {
+      maxViewportWidth,
+      maxWidth,
+      viewportRatio: config.view_port_ratio,
+      screenMinWidth: config.screen_min_width,
+      screenMaxWidth: config.screen_max_width,
+      srcset: contentfulSrcSet,
+      src: original.location,
+      alt: original.alt || ''
+    });
   });
-
+  if (isPicture) imgTag += '</picture>';
+  if (isPicture) contentfulImgTag += '</picture>';
   // Write to output file for easy copy past
-  fs.appendFile("./output.html", imgTag, function(err) {
+  fs.appendFile("./output.html", imgTag + contentfulImgTag, function(err) {
     if (err) {
       return console.log(err);
     }
@@ -70,9 +110,9 @@ function generateSettings(photo, ratio, i) {
   let maxWidth = photo.max_width || 1000;
   let minWidth = photo.min_width || 200;
   let viewPortRatio = photo.view_port_ratios && parseInt(photo.view_port_ratios[i]) || 100;
+  const screenSizes = photo.screen_sizes[i].split(',');
   if (photo.screen_sizes && photo.screen_sizes[i]) {
-    const [calcMinWidth, calcMaxWidth] = photo.screen_sizes[i]
-      .split(',')
+    const [calcMinWidth, calcMaxWidth] = screenSizes
       .map((size) => Math.ceil(parseInt(size || 0) * (viewPortRatio / 100.0)));
     minWidth = calcMinWidth > 0 ? calcMinWidth : minWidth;
     maxWidth = calcMaxWidth > 0 ? Math.min(calcMaxWidth, maxWidth) : maxWidth;
@@ -82,6 +122,8 @@ function generateSettings(photo, ratio, i) {
     bytes_step: photo.bytes_step || 25000,
     min_width: minWidth,
     max_width: maxWidth * (photo.retina === false ? 1 : 2),
+    screen_min_width: parseInt(screenSizes[0]),
+    screen_max_width: parseInt(screenSizes[1]),
     max_images: photo.max_images || 10,
     transformation: photo.transformation || (ratio === 'original') ? {} : {
       crop: 'fill',
