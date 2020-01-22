@@ -64,6 +64,7 @@ function handleUpload(original, settings, upload) {
     let srcSet = '';
     let contentfulSrcSet = '';
     let webP = '';
+    let fallbackImg = '';
     const config = settings[dIndex];
     const maxWidth = derivative.breakpoints[0].width;
     const maxViewportWidth  = Math.round(maxWidth / (config.view_port_ratio / 100.0)); 
@@ -76,6 +77,7 @@ function handleUpload(original, settings, upload) {
       }
       webP             += `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''}&fm=webp ${breakpoint.width}w`;
       contentfulSrcSet += `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''} ${breakpoint.width}w`;
+      fallbackImg       = `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''}`;
       if (index !== derivative.breakpoints.length - 1) {
         srcSet += `, \n \t \t`;
         webP += `, \n \t \t`;
@@ -83,16 +85,16 @@ function handleUpload(original, settings, upload) {
       }
     })
     if (!DISABLE_CLOUDINARY_OUTPUT) {
-    imgTag += renderImage(dIndex, {
-      maxViewportWidth,
-      maxWidth,
-      viewportRatio: config.view_port_ratio,
-      screenMinWidth: config.screen_min_width,
-      screenMaxWidth: config.screen_max_width,
-      srcset: srcSet,
-      src: upload.secure_url,
-      alt: original.alt || ''
-    });
+      imgTag += renderImage(dIndex, {
+        maxViewportWidth,
+        maxWidth,
+        viewportRatio: config.view_port_ratio,
+        screenMinWidth: config.screen_min_width,
+        screenMaxWidth: config.screen_max_width,
+        srcset: srcSet,
+        src: upload.secure_url,
+        alt: original.alt || ''
+      });
     }
     contentfulImgTag += renderImage(dIndex + 1, {
       maxViewportWidth,
@@ -110,7 +112,7 @@ function handleUpload(original, settings, upload) {
       screenMinWidth: config.screen_min_width,
       screenMaxWidth: config.screen_max_width,
       srcset: contentfulSrcSet,
-      src: original.location,
+      src: fallbackImg,
       alt: original.alt || ''
     });
   });
