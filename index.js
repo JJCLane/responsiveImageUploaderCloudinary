@@ -10,6 +10,7 @@ cloudinary.config({
   api_key: process.env.API_KEY,
   api_secret: process.env.CLOUDINARY_SECRET
 });
+const ENABLE_WEBP = true;
 
 // Parse the JSON file of images to upload
 const photosToUpload = JSON.parse(fs.readFileSync('./photosToUpload.json', 'utf8'));
@@ -22,6 +23,7 @@ function renderImage(index, {
   screenMaxWidth,
   srcset,
   src,
+  type,
   alt
 }) {
   let tag = 'img';
@@ -29,27 +31,30 @@ function renderImage(index, {
   if (index > 0) {
     // This is one of the smaller images within a picture element
     tag = 'source';
-    media = `media="${
-      screenMinWidth ? 
-        `(min-width: ${screenMinWidth}px)` : ``
-      }${screenMinWidth && screenMaxWidth ? ' and ' : ''}${
-        screenMaxWidth ? 
-          `(max-width: ${screenMaxWidth}px)` : ``
-      }"`;
+    if (screenMinWidth || screenMaxWidth){
+      media = `media="${
+        screenMinWidth ? 
+          `(min-width: ${screenMinWidth}px)` : ``
+        }${screenMinWidth && screenMaxWidth ? ' and ' : ''}${
+          screenMaxWidth ? 
+            `(max-width: ${screenMaxWidth}px)` : ``
+        }"`;
+    }
   }
 
   return `
   <${tag} ${media}
     sizes="(max-width: ${maxViewportWidth}px) ${viewportRatio}vw, ${maxWidth}px"
-    srcset="${srcset}"
-    src="${src}"
-    alt="${alt}"
+    srcset="${srcset}" ${type ? `
+    type="${type}"` : ''}${tag === 'img' ? `
+    src="${src}" 
+    alt="${alt}"` : ''}
   />`;
 }
 
 function handleUpload(original, settings, upload) {
   const derivatives = upload.responsive_breakpoints;
-  const isPicture = (derivatives.length > 1);
+  const isPicture = ENABLE_WEBP || (derivatives.length > 1);
   let imgTag = isPicture ? '\n<picture>' : '';
   let contentfulImgTag = isPicture ? '\n<picture>' : '';
 
@@ -57,6 +62,7 @@ function handleUpload(original, settings, upload) {
     const dIndex = (derivatives.length - 1) - forwardIndex;
     let srcSet = '';
     let contentfulSrcSet = '';
+    let webP = '';
     const config = settings[dIndex];
     const maxWidth = derivative.breakpoints[0].width;
     const maxViewportWidth  = Math.round(maxWidth / (config.view_port_ratio / 100.0)); 
@@ -67,9 +73,11 @@ function handleUpload(original, settings, upload) {
         const [, w, h] = (config.transformation.aspect_ratio.match(/(\d+):(\d+)/));
         height = Math.ceil(breakpoint.width * (parseInt(h) / parseInt(w)));
       }
-      contentfulSrcSet += `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=crop` : ''} ${breakpoint.width}w`;
+      webP             += `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''}&fm=webp ${breakpoint.width}w`;
+      contentfulSrcSet += `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''} ${breakpoint.width}w`;
       if (index !== derivative.breakpoints.length - 1) {
         srcSet += `, \n \t \t`;
+        webP += `, \n \t \t`;
         contentfulSrcSet += `, \n \t \t`;
       }
     })
@@ -83,6 +91,15 @@ function handleUpload(original, settings, upload) {
       srcset: srcSet,
       src: upload.secure_url,
       alt: original.alt || ''
+    });
+    contentfulImgTag += renderImage(dIndex + 1, {
+      maxViewportWidth,
+      maxWidth,
+      viewportRatio: config.view_port_ratio,
+      screenMinWidth: config.screen_min_width,
+      screenMaxWidth: config.screen_max_width,
+      srcset: webP,
+      type: 'image/webp',
     });
     contentfulImgTag += renderImage(dIndex, {
       maxViewportWidth,
@@ -102,16 +119,17 @@ function handleUpload(original, settings, upload) {
     if (err) {
       return console.log(err);
     }
-    console.log("The file was saved!");
+    console.log(`The file (${original.public_id}) was saved!`);
   });
 }
 
 function generateSettings(photo, ratio, i) {
+  const viewPortRatio = photo.view_port_ratios && parseInt(photo.view_port_ratios[i]) || 100;
   let maxWidth = photo.max_width || 1000;
   let minWidth = photo.min_width || 200;
-  let viewPortRatio = photo.view_port_ratios && parseInt(photo.view_port_ratios[i]) || 100;
-  const screenSizes = photo.screen_sizes[i].split(',');
+  let screenSizes = [];
   if (photo.screen_sizes && photo.screen_sizes[i]) {
+    screenSizes = photo.screen_sizes[i].split(',');
     const [calcMinWidth, calcMaxWidth] = screenSizes
       .map((size) => Math.ceil(parseInt(size || 0) * (viewPortRatio / 100.0)));
     minWidth = calcMinWidth > 0 ? calcMinWidth : minWidth;
@@ -119,7 +137,7 @@ function generateSettings(photo, ratio, i) {
   }
   return {
     create_derived: true,
-    bytes_step: photo.bytes_step || 25000,
+    bytes_step: photo.bytes_step || 35000,
     min_width: minWidth,
     max_width: maxWidth * (photo.retina === false ? 1 : 2),
     screen_min_width: parseInt(screenSizes[0]),
