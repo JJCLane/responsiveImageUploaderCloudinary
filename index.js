@@ -83,41 +83,37 @@ function handleUpload(original, settings, upload) {
         webP += `, \n \t \t`;
         contentfulSrcSet += `, \n \t \t`;
       }
-    })
-    if (!DISABLE_CLOUDINARY_OUTPUT) {
-      imgTag += renderImage(dIndex, {
-        maxViewportWidth,
-        maxWidth,
-        viewportRatio: config.view_port_ratio,
-        screenMinWidth: config.screen_min_width,
-        screenMaxWidth: config.screen_max_width,
-        srcset: srcSet,
-        src: upload.secure_url,
-        alt: original.alt || ''
-      });
-    }
-    contentfulImgTag += renderImage(dIndex + 1, {
+    });
+    const imageMeta = {
       maxViewportWidth,
       maxWidth,
       viewportRatio: config.view_port_ratio,
       screenMinWidth: config.screen_min_width,
       screenMaxWidth: config.screen_max_width,
+      alt: original.alt || ''
+    };
+    if (!DISABLE_CLOUDINARY_OUTPUT) {
+      imgTag += renderImage(dIndex, {
+        ...imageMeta,
+        srcset: srcSet,
+        src: upload.secure_url,
+      });
+    }
+    contentfulImgTag += renderImage(dIndex + 1, {
+      ...imageMeta,
       srcset: webP,
       type: 'image/webp',
     });
     contentfulImgTag += renderImage(dIndex, {
-      maxViewportWidth,
-      maxWidth,
-      viewportRatio: config.view_port_ratio,
-      screenMinWidth: config.screen_min_width,
-      screenMaxWidth: config.screen_max_width,
+      ...imageMeta,
       srcset: contentfulSrcSet,
       src: fallbackImg,
-      alt: original.alt || ''
     });
   });
-  if (isPicture) imgTag += '\n</picture>';
-  if (isPicture) contentfulImgTag += '\n</picture>';
+  if (isPicture) {
+    imgTag += '\n</picture>';
+    contentfulImgTag += '\n</picture>';
+  }
   // Write to output file for easy copy past
   fs.appendFile("./output.html", (DISABLE_CLOUDINARY_OUTPUT) ? contentfulImgTag : imgTag + contentfulImgTag,
   function(err) {
