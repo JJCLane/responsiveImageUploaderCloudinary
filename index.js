@@ -11,6 +11,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_SECRET
 });
 const ENABLE_WEBP = true;
+const DISABLE_CLOUDINARY_OUTPUT = true;
 
 // Parse the JSON file of images to upload
 const photosToUpload = JSON.parse(fs.readFileSync('./photosToUpload.json', 'utf8'));
@@ -81,7 +82,7 @@ function handleUpload(original, settings, upload) {
         contentfulSrcSet += `, \n \t \t`;
       }
     })
-
+    if (!DISABLE_CLOUDINARY_OUTPUT) {
     imgTag += renderImage(dIndex, {
       maxViewportWidth,
       maxWidth,
@@ -92,6 +93,7 @@ function handleUpload(original, settings, upload) {
       src: upload.secure_url,
       alt: original.alt || ''
     });
+    }
     contentfulImgTag += renderImage(dIndex + 1, {
       maxViewportWidth,
       maxWidth,
@@ -112,10 +114,11 @@ function handleUpload(original, settings, upload) {
       alt: original.alt || ''
     });
   });
-  if (isPicture) imgTag += '</picture>';
-  if (isPicture) contentfulImgTag += '</picture>';
+  if (isPicture) imgTag += '\n</picture>';
+  if (isPicture) contentfulImgTag += '\n</picture>';
   // Write to output file for easy copy past
-  fs.appendFile("./output.html", imgTag + contentfulImgTag, function(err) {
+  fs.appendFile("./output.html", (DISABLE_CLOUDINARY_OUTPUT) ? contentfulImgTag : imgTag + contentfulImgTag,
+  function(err) {
     if (err) {
       return console.log(err);
     }
