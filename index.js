@@ -69,20 +69,21 @@ function handleUpload(original, settings, upload) {
     const maxWidth = derivative.breakpoints[0].width;
     const maxViewportWidth  = Math.round(maxWidth / (config.view_port_ratio / 100.0)); 
     derivative.breakpoints.forEach(function(breakpoint, index) {
-      srcSet = srcSet.concat(breakpoint.secure_url, ` ${breakpoint.width}w`);
       let height = 0;
       if (config.transformation.aspect_ratio) {
         const [, w, h] = (config.transformation.aspect_ratio.match(/(\d+):(\d+)/));
         height = Math.ceil(breakpoint.width * (parseInt(h) / parseInt(w)));
       }
-      webP             += `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''}&fm=webp ${breakpoint.width}w`;
-      contentfulSrcSet += `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''} ${breakpoint.width}w`;
-      fallbackImg       = `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb` : ''}`;
-      if (index !== derivative.breakpoints.length - 1) {
-        srcSet += `, \n \t \t`;
-        webP += `, \n \t \t`;
-        contentfulSrcSet += `, \n \t \t`;
+      const imageUrl = `${original.location}?w=${breakpoint.width}${height ? `&h=${height}&fit=thumb&f=faces` : ''}`;
+      fallbackImg = imageUrl;
+      let lineBreak = '';
+      if (index !== 0) {
+        lineBreak = `,\n\t\t`;
       }
+      srcSet = breakpoint.secure_url + ` ${breakpoint.width}w${lineBreak}` + srcSet;
+      webP             = `${imageUrl}&fm=webp ${breakpoint.width}w${lineBreak}` + webP;
+      contentfulSrcSet = `${imageUrl} ${breakpoint.width}w${lineBreak}` + contentfulSrcSet;
+      
     });
     const imageMeta = {
       maxViewportWidth,
